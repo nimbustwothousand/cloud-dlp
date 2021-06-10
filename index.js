@@ -14,6 +14,10 @@ const pubsub = new PubSub()
 const projectId = process.env.PROJECT_ID;
 const datasetId = process.env.DATASET_ID;
 const tableId = process.env.TABLE_ID;
+
+const findingsProjectId = process.env.FINDINGS_PROJECT_ID;
+const findingsDatasetId = process.env.FINDINGS_DATASET_ID;
+
 const location = 'europe-west2';
 const queryLimit = 5;
 
@@ -22,23 +26,17 @@ const table = dataset.table(tableId)
 
 async function getRows() {
 	const query = `select * from \`${projectId}.${datasetId}.${tableId}\` LIMIT ${queryLimit}`
-
-	// For all options, see https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/query
 	const options = {
 		query: query
 	};
-	// Run the query as a job
 	const [job] = await bigquery.createQueryJob(options);
 	console.log(`Job ${job.id} started.`);
 
-	// Wait for the query to finish
 	const [rows] = await job.getQueryResults();
-
 	const rowArray = formatRows(rows);
 
 	return rowArray
 }
-//getRows()
 
 async function formatRows(rows) {
 	let rowArr = [];
@@ -68,10 +66,10 @@ async function constructTable() {
 	return tbl;
 }
 
-async function createDlpJob() {
+async function getFindings() {
 	const minLikelihood = 'LIKELY';
 	const maxFindings = 0;
-	const includeQuote = false;
+	const includeQuote = true;
 	const tbl = await constructTable();
 	const item = { table: tbl };
 	// Construct request
@@ -86,26 +84,56 @@ async function createDlpJob() {
 		},
 		item: item,
 	};
-	try {
-		const [response] = await dlp.inspectContent(request)
-		const findings = response.result.findings;
-		if (findings.length > 0) {
-			console.log('Findings:');
-			console.log('PII Type: ', findings[0].infoType.name) // PII Type
-			console.log('Likelihood: ', findings[0].likelihood) // Likelihood
-			console.log('Field: ', findings[0].location.contentLocations[0].recordLocation.fieldId.name) //field name
-			findings.forEach((finding, idx) => {
-				//if (!finding.infoType) { console.log(finding) }
-				console.log('Finding number: ', idx)
-				console.log(`\tInfo type: ${finding.infoType.name}`);
-				console.log(`\tLikelihood: ${finding.likelihood}`);
-				console.log(`\tLocation: ${finding.location.contentLocations[0].recordLocation.fieldId.name}`)
-			});
-		} else {
-			console.log('No findings.');
+
+	const response = await dlp.inspectContent(request);
+	const findings = response[0].result.findings;
+	const fnd = {};
+	if (findings.length > 0) {
+		findings.forEach((finding, idx) => {
+			fnd[idx] = {};
+			if (includeQuote) { fnd[idx].value = finding.quote } else { fnd[idx].value = null }; // Text found
+			fnd[idx].infoType = finding.infoType.name;
+			fnd[idx].likelihood = finding.likelihood;
+			fnd[idx].field = finding.location.contentLocations[0].recordLocation.fieldId.name;
+		})
+	}
+	return fnd;
+}
+async function getTableExists(findingsTableId) {
+	const findingsDataset = bigquery.dataset(findingsDatasetId)
+	const findingsTable = findingsDataset.table(findingsTableId)
+
+	const [exists] = await findingsTable.exists()
+	return exists;
+}
+
+async function deleteTable(datasetId, tableId) {
+	const d = bigquery.dataset(datasetId);
+	const t = d.table(tableId);
+	const [apiResponse] = await t.delete()
+	return apiResponse
+}
+
+async function createTable(datasetId, tableId) {
+	const d = bigquery.dataset(datasetId);
+	const t = d.table(tableId);
+	const response = await t.create();
+	return response[0]
+}
+
+async function main() {
+	const findings = await getFindings();
+	if (findings == {}) { // There were no findings
+		console.log('No findings.')
+	} else {
+		// check if a results table exists
+		const findingsTableId = `DLP_findings-${datasetId}-${tableId}`;
+		const exists = await getTableExists(findingsTableId); // BOOL
+		if (exists) {
+			const deleted = await deleteTable(findingsDatasetId, findingsTableId);
 		}
-	} catch (err) {
-		console.error(err)
+
+		const findingsTable = await createTable(findingsDatasetId, findingsTableId);
 	}
 }
-createDlpJob();
+main()
