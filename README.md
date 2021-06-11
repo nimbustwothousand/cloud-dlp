@@ -11,6 +11,7 @@ The `/reference/` folder contains the code from quickstarts provided by Google i
 `/functions/createPIITagTemplates.js` is a single-use script that generates Data Catalog tag templates for all Info Types being scanned for. The same list of Info Types is also used in `index.js`, so there's some duplication that needs to be fixed as this project evolves. If you want to change the Info Types being scanned for, change it in both places.
 
 `index.js` is a script that queries the table identified in the environment variables and saves the results of that scan to a new table in a chosen dataset. Run `node .` to run it.
+
 `datacatalog.js` is a script that queries the results table and tags each column with the Info Types that were found; one tag per Info Type. Run `node datacatalog.js` to run it. You must run `/functions/createPIITagTemplates.js` first, or create the tags manually.
 
 # Environment variables
