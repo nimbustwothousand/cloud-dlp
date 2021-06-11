@@ -5,21 +5,14 @@ const dlp = new DLP.DlpServiceClient()
 const { BigQuery } = require('@google-cloud/bigquery')
 const bigquery = new BigQuery()
 
-const { DataCatalogClient } = require('@google-cloud/datacatalog')
-const datacatalog = new DataCatalogClient()
-
-const { PubSub } = require('@google-cloud/pubsub')
-const pubsub = new PubSub()
-
-const projectId = process.env.PROJECT_ID;
+const projectId = process.env.PROJECT_ID; // Only used for querying; the project is determined by the service account being used to authenticate. This script cannot create a results table in a different project.
 const datasetId = process.env.DATASET_ID;
 const tableId = process.env.TABLE_ID;
 
-const findingsProjectId = process.env.FINDINGS_PROJECT_ID;
 const findingsDatasetId = process.env.FINDINGS_DATASET_ID;
 
 const location = 'europe-west2';
-const queryLimit = 5;
+const queryLimit = 100;
 
 const dataset = bigquery.dataset(datasetId)
 const table = dataset.table(tableId)
@@ -132,19 +125,7 @@ async function insertFindings(rows, findingsTableId) {
 		createInsertId: true,
 		partialRetries: 3,
 	};
-	function insertHandler(err, apiResponse) {
-		if (err) {
-			// An API error or partial failure occurred.
-			console.log('Error inserting rows.')
-			console.log(err.errors[0].message)
-			if (err.name === 'PartialFailureError') {
-				// Some rows failed to insert, while others may have succeeded.
-				console.log(err.errors[0].errors[0].reason)
-				console.log(err.errors[0].errors[0].message)
-			}
-		}
-	}
-	return t.insert(rows);//, options, insertHandler);
+	return t.insert(rows, options);
 }
 
 async function main() {
@@ -160,11 +141,6 @@ async function main() {
 			const deleted = await deleteTable(findingsDatasetId, findingsTableId);
 			console.log(deleted)
 		}
-		// createTable(findingsDatasetId, findingsTableId)
-		// 	.then(insertFindings(findings, findingsTableId))
-		// 	.then(console.log(`Findings saved in ${findingsDatasetId}.${findingsTableId}`))
-		// 	.catch(err => { console.error(err) })
-
 		// Create a results table
 		const findingsTable = await createTable(findingsDatasetId, findingsTableId);
 		console.log('Created table: ', findingsTable.metadata.tableReference.tableId, 'in dataset: ', findingsDatasetId)
