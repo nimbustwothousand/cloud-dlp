@@ -61,6 +61,11 @@ async function constructTable() {
 async function getFindings() {
 	const minLikelihood = 'LIKELY';
 	const maxFindings = 0;
+	const infoTypesArr = ['ADVERTISING_ID', 'AGE', 'CREDIT_CARD_NUMBER', 'DATE', 'DATE_OF_BIRTH', 'DOMAIN_NAME', 'EMAIL_ADDRESS', 'ETHNIC_GROUP', 'FIRST_NAME', 'LAST_NAME', 'PERSON_NAME', 'GENDER', 'GENERIC_ID', 'IMEI_HARDWARE_ID', 'IP_ADDRESS', 'MAC_ADDRESS', 'MAC_ADDRESS_LOCAL', 'STREET_ADDRESS', 'SWIFT_CODE', 'URL', 'VEHICLE_IDENTIFICATION_NUMBER', 'UK_DRIVERS_LICENSE_NUMBER', 'UK_NATIONAL_INSURANCE_NUMBER'];
+	const infoTypes = []
+	infoTypesArr.forEach(i => {
+		infoTypes.push({ name: i })
+	})
 	const includeQuote = true;
 	const tbl = await constructTable();
 	const item = { table: tbl };
@@ -68,6 +73,7 @@ async function getFindings() {
 	const request = {
 		parent: `projects/${projectId}/locations/${location}`,
 		inspectConfig: {
+			infoTypes: infoTypes,
 			minLikelihood: minLikelihood,
 			limits: {
 				maxFindingsPerRequest: maxFindings,
