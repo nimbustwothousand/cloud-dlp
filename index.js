@@ -55,10 +55,9 @@ async function formatRows(rows) {
 async function getHeaders() {
 	const [metadata] = await table.getMetadata();
 	const headers = metadata.schema.fields;
-	//console.log(headers)
 	return headers;
 };
-//getHeaders()
+
 async function constructTable() {
 	const tbl = {};
 	tbl.headers = await getHeaders();
@@ -87,18 +86,20 @@ async function getFindings() {
 
 	const response = await dlp.inspectContent(request);
 	const findings = response[0].result.findings;
-	const fnd = {};
+	const fnd = [];
 	if (findings.length > 0) {
 		findings.forEach((finding, idx) => {
-			fnd[idx] = {};
-			if (includeQuote) { fnd[idx].value = finding.quote } else { fnd[idx].value = null }; // Text found
-			fnd[idx].infoType = finding.infoType.name;
-			fnd[idx].likelihood = finding.likelihood;
-			fnd[idx].field = finding.location.contentLocations[0].recordLocation.fieldId.name;
+			const row = {};
+			if (includeQuote) { row.value = finding.quote } else { row.value = null }; // Text found
+			row.infoType = finding.infoType.name;
+			row.likelihood = finding.likelihood;
+			row.field = finding.location.contentLocations[0].recordLocation.fieldId.name;
+			fnd.push(row)
 		})
 	}
 	return fnd;
 }
+
 async function getTableExists(findingsTableId) {
 	const findingsDataset = bigquery.dataset(findingsDatasetId)
 	const findingsTable = findingsDataset.table(findingsTableId)
@@ -111,14 +112,39 @@ async function deleteTable(datasetId, tableId) {
 	const d = bigquery.dataset(datasetId);
 	const t = d.table(tableId);
 	const [apiResponse] = await t.delete()
-	return apiResponse
+	return 'Table already exists. Deleting table...'
 }
 
 async function createTable(datasetId, tableId) {
 	const d = bigquery.dataset(datasetId);
 	const t = d.table(tableId);
-	const response = await t.create();
+	const options = {
+		schema: 'value:string,infoType:string,likelihood:string,field:string'
+	};
+	const response = await t.create(options);
 	return response[0]
+}
+
+async function insertFindings(rows, findingsTableId) {
+	const d = bigquery.dataset(findingsDatasetId);
+	const t = d.table(findingsTableId);
+	const options = {
+		createInsertId: true,
+		partialRetries: 3,
+	};
+	function insertHandler(err, apiResponse) {
+		if (err) {
+			// An API error or partial failure occurred.
+			console.log('Error inserting rows.')
+			console.log(err.errors[0].message)
+			if (err.name === 'PartialFailureError') {
+				// Some rows failed to insert, while others may have succeeded.
+				console.log(err.errors[0].errors[0].reason)
+				console.log(err.errors[0].errors[0].message)
+			}
+		}
+	}
+	return t.insert(rows);//, options, insertHandler);
 }
 
 async function main() {
@@ -129,11 +155,23 @@ async function main() {
 		// check if a results table exists
 		const findingsTableId = `DLP_findings-${datasetId}-${tableId}`;
 		const exists = await getTableExists(findingsTableId); // BOOL
+		// If it does exist, delete it
 		if (exists) {
 			const deleted = await deleteTable(findingsDatasetId, findingsTableId);
+			console.log(deleted)
 		}
+		// createTable(findingsDatasetId, findingsTableId)
+		// 	.then(insertFindings(findings, findingsTableId))
+		// 	.then(console.log(`Findings saved in ${findingsDatasetId}.${findingsTableId}`))
+		// 	.catch(err => { console.error(err) })
 
+		// Create a results table
 		const findingsTable = await createTable(findingsDatasetId, findingsTableId);
+		console.log('Created table: ', findingsTable.metadata.tableReference.tableId, 'in dataset: ', findingsDatasetId)
+		// Insert the findings
+		const success = await insertFindings(findings, findingsTableId);
+		console.log('insertFindings() response: ', success)
 	}
+
 }
 main()
