@@ -12,15 +12,9 @@ const datasetId = process.env.DATASET_ID;
 const tableId = process.env.TABLE_ID;
 const location = 'europe-west2';
 
-const dataset = bigquery.dataset(datasetId);
-const table = dataset.table(tableId);
-
 // The results table which contains the findings of the scan
 const findingsDatasetId = process.env.FINDINGS_DATASET_ID;
 const findingsTableId = `DLP_findings-${datasetId}-${tableId}`;
-
-const findingsDataset = bigquery.dataset(findingsDatasetId)
-const findingsTable = findingsDataset.table(findingsTableId)
 
 // Functions
 async function getEntry() {
@@ -34,7 +28,7 @@ async function getEntry() {
 }
 
 async function queryFindingsTable() {
-	const query = `select * from \`${projectId}.${findingsDatasetId}.${findingsTableId}\``; // TODO: REMOVE THIS LIMIT
+	const query = `select * from \`${projectId}.${findingsDatasetId}.${findingsTableId}\``;
 	const options = {
 		query: query
 	};
@@ -90,24 +84,3 @@ async function main() {
 };
 
 main();
-
-/*
-const tagTemplateId = `pii_found_infotype_name`;
-const tagTemplate = {
-		displayName: INFOTYPE_NAME,
-		fields: {
-			has_pii: {
-				displayName: 'Has PII',
-				type: {
-					primitiveType: 'BOOL'
-				},
-			},
-			pii_type: {
-				displayName: 'PII Type',
-				type: {
-					primitiveType: 'STRING'
-				}
-			}
-		}
-	}
-*/
