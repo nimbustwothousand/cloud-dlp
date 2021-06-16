@@ -130,6 +130,7 @@ async function insertFindings(rows, findingsTableId) {
 	const options = {
 		createInsertId: true,
 		partialRetries: 3,
+		schema: 'value:string,infoType:string,likelihood:string,field:string'
 	};
 	return t.insert(rows, options);
 }
